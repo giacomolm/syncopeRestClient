@@ -6,6 +6,7 @@ import java.net.URI;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import javax.ws.rs.core.Response;
@@ -23,6 +24,7 @@ import org.apache.syncope.common.services.PolicyService;
 import org.apache.syncope.common.services.ReportService;
 import org.apache.syncope.common.services.ResourceService;
 import org.apache.syncope.common.services.RoleService;
+import org.apache.syncope.common.services.RouteService;
 import org.apache.syncope.common.services.SchemaService;
 import org.apache.syncope.common.services.TaskService;
 import org.apache.syncope.common.services.UserSelfService;
@@ -34,6 +36,7 @@ import org.apache.syncope.common.to.AttributeTO;
 import org.apache.syncope.common.to.RoleTO;
 import org.apache.syncope.common.to.TaskExecTO;
 import org.apache.syncope.common.to.AbstractTaskTO;
+import org.apache.syncope.common.to.RouteTO;
 import org.apache.syncope.common.to.UserTO;
 import org.apache.syncope.common.types.AttributableType;
 import org.apache.syncope.common.types.RESTHeaders;
@@ -131,6 +134,8 @@ public class App {
     private static UserWorkflowService userWorkflowService;
 
     private static PolicyService policyService;
+    
+    private static RouteService routeService;
 
     private static AttributeTO attributeTO(final String schema, final String value) {
         final AttributeTO attr = new AttributeTO();
@@ -275,6 +280,36 @@ public class App {
 
         return getObject(response.getLocation(), RoleService.class, RoleTO.class);
     }
+    
+    private static List<RouteTO> readRoutes(){
+        return  routeService.getRoutes();    
+    }
+    
+    private static void writeRoutes(){
+        RouteTO route = new RouteTO();
+        route.setId(Integer.valueOf(1).longValue());
+        route.setName("createUser");
+        route.setRouteContent("<route id=\"createUser\">\n" +
+"          <from uri=\"direct:createUser\"/>\n" +
+"          <setProperty propertyName=\"actual\">\n" +
+"            <simple>${body}</simple>\n" +
+"          </setProperty>\n" +
+"          <doTry>\n" +
+"            <bean ref=\"uwfAdapter\" method=\"create(${body},${property.disablePwdPolicyCheck},${property.enabled})\"/>\n" +
+"            <process ref=\"defaultUserCreatePropagation\" />\n" +
+"            <to uri=\"direct:createPort\"/>\n" +
+"            <to uri=\"smtps://smtp.gmail.com?username=giacomolm&amp;password=graphicengineer&amp;contentType=text/html&amp;to=giacomo.lamonaco@tirasa.net\" />\n" +
+"            <doCatch>        \n" +
+"                <exception>java.lang.RuntimeException</exception>\n" +
+"                <handled>\n" +
+"                    <constant>false</constant>\n" +
+"                </handled>\n" +
+"                <to uri=\"direct:createPort\"/>\n" +
+"            </doCatch>\n" +
+"          </doTry>\n" +
+"        </route> ");
+        routeService.importRoute(route.getId(), route);
+    }
 
     private static void init() {
         userService = client.getService(UserService.class);
@@ -292,11 +327,13 @@ public class App {
         notificationService = client.getService(NotificationService.class);
         schemaService = client.getService(SchemaService.class);
         userSelfService = client.getService(UserSelfService.class);
+        routeService = client.getService(RouteService.class);
     }
 
     public static void main(final String[] args) {
         init();
 
         // *do* something
+        writeRoutes();
     }
 }
